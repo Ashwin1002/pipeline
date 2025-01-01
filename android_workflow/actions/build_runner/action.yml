@@ -1,0 +1,26 @@
+name: Build Runner Action
+description: Checks and runs build_runner in the Dart/Flutter project. Uses build_runner dev dependency to generated code for files contains part declarative as '*.g.dart' or '*.freezed.dart'
+
+inputs:
+  delete_conflicting_outputs:
+    description: Whether to delete conflicting outputs.
+    default: true
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check if build_runner is installed
+      shell: bash
+      run: |
+        if ! grep -q "build_runner" pubspec.yaml; then
+          echo "build_runner not found in dev_dependencies. Adding it..."
+          flutter pub add build_runner --dev
+        else
+          echo "build_runner is already installed."
+        fi
+
+    - name: Run build_runner
+      shell: bash
+      run: |
+        dart run build_runner build $([ "${{ inputs.delete_conflicting_outputs }}" == "true" ] && echo "--delete-conflicting-outputs")

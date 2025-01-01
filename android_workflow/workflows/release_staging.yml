@@ -1,0 +1,82 @@
+name: Internal Testing Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build_and_release_android:
+    name: Android
+    uses: ./.github/workflows/deploy_android.yml
+    permissions:
+      contents: write
+
+    with:
+      flutter_version: 3.27.0
+      java_version: 21
+      bundle_id: com.example.app # the bundle id of the app
+      track: internal
+      status: completed
+      whatsnew_file: ./distribution/whatsnew/whatsnew.txt
+      create_github_release: true # Create apks and upload to Artifacts
+      upload_to_google_play: true # Create app bundle and upload to Google Play
+      increment_version: true # Increment versionCode if not tagged
+      release_type: patch
+      flavor: # optional flavor
+      generate_code_using_build_runner: true
+
+    secrets:
+      ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+      ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+      ANDROID_RELEASE_SERVICE_ACCOUNT: ${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
+
+  create_github_release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - build_and_release_android
+
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Describe Action
+        id: describe
+        uses: ./.github/actions/describe
+        with:
+          increment_version: true
+          release_type: patch
+
+      - name: Commit Updated pubspec.yaml
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add pubspec.yaml
+          git commit -m "Bump version to ${{ steps.describe.outputs.version }}"
+          git tag ${{ steps.describe.outputs.tag }}
+          git push --follow-tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Android
+          path: artifacts
+
+      - name: Display Artifact
+        run: ls -la artifacts
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: artifacts/*
+          removeArtifacts: true
+          tag: ${{ steps.describe.outputs.tag }}

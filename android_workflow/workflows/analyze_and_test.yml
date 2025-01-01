@@ -1,0 +1,13 @@
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  trigger_analysis:
+    uses: ./.github/workflows/analyze.yml
+    name: Analyze
+    with:
+      flutter_version: 3.27.0
+      java_version: 21
+      generate_code_using_build_runner: true
+      run_flutter_test: false

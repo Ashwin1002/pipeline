@@ -1,0 +1,58 @@
+on:
+  workflow_call:
+    inputs:
+      flutter_version: { type: string, required: true, default: "3.27.0" }
+      java_version: { type: string, required: true, default: "21" }
+      generate_code_using_build_runner:
+        { type: boolean, required: false, default: true }
+      run_flutter_test: { type: boolean, required: false, default: true }
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set Flutter and Java versions
+        run: |
+          echo "FLUTTER_VERSION=${{ inputs.flutter_version }}" >> $GITHUB_ENV
+          echo "JAVA_VERSION=${{ inputs.java_version }}" >> $GITHUB_ENV
+
+      - name: Temporarily exclude `.env` from pubspec.yaml
+        run: |
+          sed -i.bak '/- .env/d' pubspec.yaml
+
+      - uses: actions/setup-java@v2
+        with:
+          distribution: "zulu"
+          java-version: "${{ inputs.java_version }}"
+          cache: "gradle"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "${{ inputs.flutter_version }}"
+          channel: "stable"
+          cache: "true"
+          cache-key: ${{ runner.os }}-flutter-${{ inputs.flutter_version }}
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      #  Conditionally run the Build Runner step
+      - name: Run Build Runner
+        if: ${{ inputs.generate_code_using_build_runner }}
+        uses: ./.github/actions/build_runner
+        with:
+          delete_conflicting_outputs: true
+
+      - name: Run Flutter Analyze
+        run: flutter analyze
+
+      - name: Run Flutter Tests
+        if: ${{ inputs.run_flutter_test }}
+        run: flutter test
+
+      - name: Restore original pubspec.yaml
+        run: |
+          mv pubspec.yaml.bak pubspec.yaml

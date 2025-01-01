@@ -1,0 +1,50 @@
+name: Production Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Select Release Type, eg. patch, minor or major"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: minor
+
+      send_for_review:
+        description: "Send for review"
+        type: boolean
+        default: false
+
+jobs:
+  build_and_release_android:
+    name: Android
+    uses: ./.github/workflows/deploy_android.yml
+    permissions:
+      contents: write
+    with:
+      flutter_version: 3.27.0
+      java_version: 21
+      bundle_id: com.example.app
+      track: production
+      status: completed
+      whatsnew_file: ./distribution/whatsnew/whatsnew.txt # generates whatsnew content for the update
+      create_github_release: false
+      upload_to_google_play: true
+      increment_version: false
+      send_for_review: ${{ github.event.inputs.send_for_review == 'true' }}
+      flavor:  # Optional flavor if your app uses flavors 
+      generate_code_using_build_runner: true
+      release_type: ${{ github.event.inputs.release_type }}
+
+    secrets:
+      ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+      ANDROID_KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+      ANDROID_RELEASE_SERVICE_ACCOUNT: ${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}

@@ -1,0 +1,228 @@
+name: Build and Release Android
+
+on:
+  workflow_call:
+    inputs:
+      flutter_version: { type: string, required: true }
+      java_version: { type: string, required: true }
+      bundle_id: { type: string, required: true }
+
+      generate_code_using_build_runner:
+        { type: boolean, required: false, default: true }
+
+      # increase version and release type
+      increment_version: { type: boolean, default: true }
+      release_type:
+        {
+          type: string,
+          default: "patch",
+          description: "Change to major, minor, or patch. Defaults to `patch`",
+        }
+
+      # Set flavor as optional
+      flavor:
+        {
+          type: string,
+          default: "",
+          description: "Optional Flavor when building app : (eg. development, staging, production, )",
+        }
+
+      track: {
+          type: string,
+          default: "internal",
+          description: "Deployment track (e.g., production, aplha, beta (Open Testing), internal (Internal Testing))", #See: https://developers.google.com/android-publisher/tracks#adding_and_modifying_apks
+
+        }
+      # One of `completed`, `inProgress`, `halted`, `draft`. Cannot be null.
+      status: { type: string, default: "draft" }
+      whatsnew_file: { type: string, default: "whatsnew.txt" }
+      create_github_release: { type: boolean, default: true }
+      upload_to_google_play: { type: boolean, default: true }
+      send_for_review: { type: boolean, default: false }
+
+    secrets:
+      ANDROID_KEYSTORE: { required: true }
+      ANDROID_KEY_PROPERTIES: { required: true }
+      ANDROID_RELEASE_SERVICE_ACCOUNT: { required: true }
+      API_BASE_URL: { required: true }
+      AWS_ACCESS_KEY_ID: { required: true }
+      AWS_SECRET_ACCESS_KEY: { required: true }
+      S3_BUCKET_NAME: { required: true }
+      AWS_REGION: { required: true }
+      ONESIGNAL_APP_ID: { required: true }
+
+jobs:
+  build_and_release:
+    name: Build and Release Android
+    runs-on: ubuntu-latest
+
+    env:
+      KEYSTORE_PATH: android/upload-keystore.jks
+      KEY_PROPS_PATH: android/key.properties
+      SERVICE_ACCOUNT_PATH: store_credentials.json
+      ENV_PATH: .env
+
+    if: inputs.create_github_release || inputs.upload_to_google_play
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Describe action
+        id: describe
+        uses: ./.github/actions/increase_version
+        with:
+          increment_version: ${{ inputs.increment_version }}
+          release_type: ${{ inputs.release_type }}
+
+      - uses: actions/setup-java@v2
+        with:
+          distribution: "zulu"
+          java-version: "${{ inputs.java_version }}"
+          cache: "gradle"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "${{ inputs.flutter_version }}"
+          channel: "stable"
+          cache: "true"
+
+      - name: Download Android keystore
+        run: |
+          if echo "${{ secrets.ANDROID_KEYSTORE }}" | grep -qE '^[A-Za-z0-9+/=]+$'; then
+          echo "Secret appears to be Base64 encoded. Decoding..."
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > ${{ env.KEYSTORE_PATH }}
+          else
+          echo "Secret is not Base64 encoded. Writing directly..."
+          echo "${{ secrets.ANDROID_KEYSTORE }}" > ${{ env.KEYSTORE_PATH }}
+          fi
+
+      - name: Generate key.properties from secret
+        run: |
+          if echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" | grep -qE '^[A-Za-z0-9+/=]+$'; then
+          echo "Secret appears to be Base64 encoded. Decoding..."
+          echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" | base64 -d > ${{ env.KEY_PROPS_PATH }}
+          else
+          echo "Secret is not Base64 encoded. Writing directly..."
+          echo "${{ secrets.ANDROID_KEY_PROPERTIES }}" > ${{ env.KEY_PROPS_PATH }}
+          fi
+
+      # - name: Read Android keystore
+      #   run: |
+      #     echo "Reading Android keystore content:"
+      #     cat ${{ env.KEYSTORE_PATH }}
+
+      - name: Validate Android keystore
+        run: |
+          if [ -f "${{ env.KEYSTORE_PATH }}" ]; then
+            echo "Keystore file exists: $(ls -l ${{ env.KEYSTORE_PATH }})"
+          else
+            echo "Keystore file not found!" && exit 1
+          fi
+
+      - name: Generate code using BuildRunner
+        if: ${{ inputs.generate_code_using_build_runner }}
+        uses: ./.github/actions/build_runner
+        with:
+          delete_conflicting_outputs: true
+
+      # # Decode Android release Service Account via path
+      # - name: Decode Android Service Account
+      #   # run: echo "${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}" | base64 --decode > ${{ env.SERVICE_ACCOUNT_PATH }} # decode service account if base64 encoded
+      #   run: echo "${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}" > ${{ env.SERVICE_ACCOUNT_PATH }}
+
+      - name: Generate temp env file
+        run: |
+          echo "API_BASE_URL = "${{ secrets.API_BASE_URL }}"" > ${{ env.ENV_PATH }}
+          echo "AWS_ACCESS_KEY_ID = "${{ secrets.AWS_ACCESS_KEY_ID }}"" > ${{ env.ENV_PATH }}
+          echo "AWS_SECRET_ACCESS_KEY = "${{ secrets.AWS_SECRET_ACCESS_KEY }}"" > ${{ env.ENV_PATH }}
+          echo "S3_BUCKET_NAME = "${{ secrets.S3_BUCKET_NAME }}"" > ${{ env.ENV_PATH }}
+          echo "AWS_REGION = "${{ secrets.AWS_REGION }}"" > ${{ env.ENV_PATH }}
+          echo "ONESIGNAL_APP_ID = "${{ secrets.ONESIGNAL_APP_ID }}"" > ${{ env.ENV_PATH }}
+
+      - name: Build App Bundle
+        if: ${{ inputs.upload_to_google_play }}
+        run: |
+          if [ -n "${{ inputs.flavor }}" ]; then
+          flutter build appbundle --release \
+            --build-name=${{ steps.describe.outputs.version }} \
+            --build-number=${{ steps.describe.outputs.build_number }} \
+            --flavor=${{ inputs.flavor }} 
+          else
+          flutter build appbundle --release \
+            --build-name=${{ steps.describe.outputs.version }} \
+            --build-number=${{ steps.describe.outputs.build_number }}
+          fi
+
+      - name: Build APKs
+        if: ${{ inputs.create_github_release }}
+        run: |
+          if [ -n "${{ inputs.flavor }}" ]; then
+          flutter build apk --release \
+            --build-name=${{ steps.describe.outputs.version }} \
+            --build-number=${{ steps.describe.outputs.build_number }} \
+            --flavor=${{ inputs.flavor }}
+          else
+          flutter build apk --release \
+            --build-name=${{ steps.describe.outputs.version }} \
+            --build-number=${{ steps.describe.outputs.build_number }}
+          fi
+
+      - name: Collect Debug Symbols
+        run: |
+          mkdir -p debug-symbols
+          DEBUG_SYMBOLS_PATH="build/app/intermediates/merged_native_libs/release/out/lib"
+
+          if [ -d "$DEBUG_SYMBOLS_PATH" ]; then
+            echo "Debug symbols directory found at $DEBUG_SYMBOLS_PATH"
+            cp -r "$DEBUG_SYMBOLS_PATH/"* debug-symbols
+            zip -r debug-symbols.zip debug-symbols
+            echo "Debug symbols collected and zipped successfully."
+          else
+            echo "No debug symbols directory found at $DEBUG_SYMBOLS_PATH. Skipping this step."
+          fi
+
+      - name: Prepare Artifacts
+        if: ${{ inputs.create_github_release }}
+        run: |
+          mkdir -p artifacts
+          cp -r build/app/outputs/flutter-apk/* artifacts/
+          if [ -f debug-symbols.zip ]; then
+            cp debug-symbols.zip artifacts/
+            echo "Debug symbols included in artifacts."
+          else
+            echo "No debug symbols to include in artifacts."
+          fi
+
+      - name: Upload Artifacts
+        if: ${{ inputs.create_github_release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android
+          path: artifacts
+
+      - name: Generate What's New directory
+        run: |
+          mkdir whatsnew
+          cp ${{ inputs.whatsnew_file }} whatsnew/whatsnew-en-US
+
+      # - name: List Build Outputs
+      #   run: |
+      #     ls -R build/app/outputs/bundle
+
+      # - name: Debug Service Account Permissions
+      #   run: |
+      #     echo "${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}" | base64 -d | jq .
+
+      - name: Release app to Play Store
+        if: ${{ inputs.upload_to_google_play }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          # serviceAccountJson:  ${{ env.SERVICE_ACCOUNT_PATH }} # use this when reading service account via path
+          serviceAccountJsonPlainText: ${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}
+          packageName: ${{ inputs.bundle_id }}
+          releaseFiles: ${{ inputs.flavor && format('build/app/outputs/bundle/{0}Release/app-{0}-release.aab', inputs.flavor) || 'build/app/outputs/bundle/release/app-release.aab' }}
+          whatsNewDirectory: whatsnew
+          track: ${{ inputs.track }}
+          status: ${{ inputs.status }}
+          # changesNotSentForReview: ${{ !inputs.send_for_review }}
+          # Error at Wed 4, 2024 : Error: Changes are sent for review automatically.
+          #The query parameter changesNotSentForReview must not be set.

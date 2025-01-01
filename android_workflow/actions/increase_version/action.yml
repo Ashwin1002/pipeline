@@ -1,0 +1,105 @@
+name: Describe
+description: Increment version from pubspec.yaml and output updated values.
+
+inputs:
+  increment_version:
+    type: boolean
+    default: false
+    description: "Indicates if the version should be incremented."
+  release_type:
+    type: string
+    default: "patch"
+    description: "Type of version increment: major, minor, or patch."
+
+outputs:
+  tag:
+    description: "The new tag based on the updated version."
+    value: ${{ steps.describe.outputs.tag }}
+  version:
+    description: "The updated version from pubspec.yaml."
+    value: ${{ steps.describe.outputs.version }}
+  release_date:
+    description: "The release date of the new version."
+    value: ${{ steps.describe.outputs.release_date }}
+  build_number:
+    description: "The new build number."
+    value: ${{ steps.describe.outputs.build_number }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Read and Increment Version
+      id: describe
+      shell: bash
+      run: |
+        # Read the current version from pubspec.yaml
+        current_version=$(grep '^version: ' pubspec.yaml | awk '{print $2}')
+        echo "Current version: $current_version"
+
+        # Parse the current version and build number
+        base_version=$(echo $current_version | cut -d+ -f1)
+        build_number=$(echo $current_version | cut -d+ -f2)
+        major=$(echo $base_version | cut -d. -f1)
+        minor=$(echo $base_version | cut -d. -f2)
+        patch=$(echo $base_version | cut -d. -f3)
+
+        # Default build number if missing
+        if [ -z "$build_number" ]; then
+          build_number=1
+        fi
+
+        # Increment build number
+        build_number=$((build_number + 1))
+
+        # Determine new version based on release_type if increment_version is true
+        if [ "${{ inputs.increment_version }}" == "true" ]; then
+          case "${{ inputs.release_type }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+            *)
+              echo "Error: Invalid release type '${{ inputs.release_type }}'. Valid values are 'major', 'minor', or 'patch'."
+              exit 1
+              ;;
+          esac
+        fi
+
+        # Construct the new version and tag
+        new_version="${major}.${minor}.${patch}+${build_number}"
+        new_tag="v${major}.${minor}.${patch}"
+
+        echo "New version: $new_version"
+        echo "New tag: $new_tag"
+
+        # Update pubspec.yaml with the new version
+        sed -i "s/^version: .*/version: $new_version/" pubspec.yaml
+        echo "Updated pubspec.yaml with new version: $new_version"
+
+        # Output the new version, tag, and release date
+        echo "version=$new_version" >> $GITHUB_OUTPUT
+        echo "tag=$new_tag" >> $GITHUB_OUTPUT
+        echo "release_date=$(date --iso-8601=seconds)" >> $GITHUB_OUTPUT
+        echo "build_number=$build_number" >> $GITHUB_OUTPUT
+
+    - name: Display Outputs
+      shell: bash
+      run: |
+        echo "Generated Outputs:"
+        echo "Tag: ${{ steps.describe.outputs.tag }}"
+        echo "Version: ${{ steps.describe.outputs.version }}"
+        echo "Release Date: ${{ steps.describe.outputs.release_date }}"
+        echo "Build Number: ${{ steps.describe.outputs.build_number }}"
