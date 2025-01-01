@@ -248,8 +248,11 @@ workflow_dispatch:
 - [Flutter Build and Release Documentation](https://docs.flutter.dev/deployment/android)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions/writing-workflows)
 - [Setting up Google Play API](https://medium.com/@vontonnie/setting-up-a-service-account-on-google-cloud-for-android-app-deployment-c6e16d8fc57b)
+- [Upload Android release to the Play Store](https://github.com/r0adkll/upload-google-play?tab=readme-ov-file#readme)
 - [Setting up Xcode Cloud](https://developer.apple.com/documentation/xcode/configuring-your-first-xcode-cloud-workflow/)
 
 ---
 
-Following this guide will streamline your deployment process, ensuring that your Android and iOS applications are efficiently released and updated.
+Following this guide will streamline your deployment process, ensuring that your Android and iOS applications are efficiently released and updated. Following the setup may still result in error while uploading the app. Like for example, You may get permission error when uploading the app bundle to the playstore, which is likely due to incorrect service_account.json file. You may also get archive error in iOS if Xcode managed distribution certificate is not set. For more info, please visit developer guidelines or community forums. Someone has likely faced the error you faced and the solution might already be on the internet, you never know. Happy Coding ;)
+
+If any information is incomplete or can be explained or has a proper alternative, please feel free to contact me at [email](ashwin.shrestha2258@gmail.com) | [linkedin](https://www.linkedin.com/in/ashwin-shrestha-264110178/)
