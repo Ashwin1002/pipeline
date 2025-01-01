@@ -67,9 +67,9 @@ The generated files will typically include:
 Update your `key.properties` file with the following structure:
 
 ```properties
-storePassword=test
-keyPassword=test
-keyAlias=upload
+storePassword= <-- your store password -->
+keyPassword= <-- your key password -->
+keyAlias= <--- key alias --->
 storeFile=../upload-keystore.jks
 ```
 
