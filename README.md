@@ -41,8 +41,6 @@ Workflows are defined in YAML files located in the `.github/workflows` directory
 
 ## Android Setup
 
-<img width="971" alt="Example Workflow" src="https://github.com/user-attachments/assets/14d59a39-3061-4e24-b13c-9645a6140a33" />
-
 ### Setting up Keystore and Key Properties
 
 If you haven’t uploaded the app to the Play Store yet, start by following the [official Flutter documentation for building and releasing apps](https://docs.flutter.dev/deployment/android).
@@ -119,6 +117,8 @@ Place the respective workflow files in these directories. Ensure all configurati
 ---
 
 ## Updating Workflows
+
+<img width="971" alt="Example Workflow" src="https://github.com/user-attachments/assets/14d59a39-3061-4e24-b13c-9645a6140a33" />
 
 Workflows can be customized to meet specific requirements, such as updating branches, versions, triggering test cases, or using build_runner. Below is an example of a workflow configuration:
 
