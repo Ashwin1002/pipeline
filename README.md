@@ -14,7 +14,8 @@ This document outlines the Continuous Deployment (CD) process using GitHub Actio
    - [Uploading to Play Store](#uploading-to-play-store)
 4. [Folder Structure and Workflow Files](#folder-structure-and-workflow-files)
 5. [Updating Workflows](#updating-workflows)
-6. [Additional Resources](#additional-resources)
+6. [iOS Setup](#ios-workflow)
+7. [Additional Resources](#additional-resources)
 
 ---
 
@@ -209,17 +210,45 @@ workflow_dispatch:
    - Type: Choice with predefined options (patch, minor, major).
    - Default: minor - Used when no option is selected.
 
-1. **send_for_review**:
+2. **send_for_review**:
 
    - Description: Indicates whether the release should be sent for review.
    - Type: Boolean (true or false).
    - Default: false - If not set, the release is not sent for review.
+
+## IOS Workflow
+
+1. Set up Xcode Cloud using the official [Apple documentation](https://developer.apple.com/documentation/xcode/configuring-your-first-xcode-cloud-workflow/).
+
+2. Inside the `ios` folder, create a directory named `ci_scripts` and place the `ci_post_clone.sh` file inside.
+
+3. If you use environment variables, configure them in Xcode Cloud:
+
+   ![Setting up environment iOS](https://github.com/user-attachments/assets/f64c38e9-3417-4997-a14a-82b4f7430a68)
+
+4. Update your script to include the exact keys from the configured environment variables:
+
+   ```bash
+   # Create .env file from environment variables
+   cd $CI_PRIMARY_REPOSITORY_PATH
+   echo "Generating .env file..."
+   cat <<EOF > .env
+   HELLO=${HELLO} # set your own environment variables
+   EOF
+   ```
+
+5. Update your workflow to deploy either to internal testing or directly to the App Store:
+
+   ![Deploy to TestFlight or App Store](https://github.com/user-attachments/assets/4078fac5-91d4-462d-ac46-c46cceaaf2f5)
+
+---
 
 ## Additional Resources
 
 - [Flutter Build and Release Documentation](https://docs.flutter.dev/deployment/android)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions/writing-workflows)
 - [Setting up Google Play API](https://medium.com/@vontonnie/setting-up-a-service-account-on-google-cloud-for-android-app-deployment-c6e16d8fc57b)
+- [Setting up Xcode Cloud](https://developer.apple.com/documentation/xcode/configuring-your-first-xcode-cloud-workflow/)
 
 ---
 
